@@ -2511,7 +2511,7 @@ namespace Server.Mobiles
                 if (m_bSummoned)
                 {
                     m_SummonEnd = reader.ReadDeltaTime();
-                    TimerRegistry.Register<BaseCreature>("UnsummonTimer", this, m_SummonEnd - DateTime.UtcNow, c => c.Delete()); 
+                    TimerRegistry.Register<BaseCreature>("UnsummonTimer", this, m_SummonEnd - DateTime.UtcNow, c => c.Delete());
                 }
 
                 m_iControlSlots = reader.ReadInt();
@@ -3031,12 +3031,12 @@ namespace Server.Mobiles
             {
                 canDrop = true;
             }
-            
+
             if (!canDrop && CheckGold(from, dropped))
             {
                 canDrop = true;
             }
-            
+
             if (!canDrop && !from.InRange(Location, 2) && base.OnDragDrop(from, dropped))
             {
                 return true;
@@ -5300,9 +5300,9 @@ namespace Server.Mobiles
             if (hue > -1)
                 item.Hue = hue;
 
-            if (dropChance <= 0) 
+            if (dropChance <= 0)
                 item.Movable = false;
-            else if (dropChance >= 1) 
+            else if (dropChance >= 1)
                 item.Movable = true;
             else
                 item.Movable = dropChance > Utility.RandomDouble();
@@ -5317,7 +5317,7 @@ namespace Server.Mobiles
                 {
                     FindItemOnLayer(item.Layer)?.Delete();
                 }
-				
+
                 AddItem(item);
             }
         }
@@ -5588,11 +5588,11 @@ namespace Server.Mobiles
             }
         }
 
-        public virtual bool IsAggressiveMonster => IsMonster 
+        public virtual bool IsAggressiveMonster => IsMonster
         										&&
-        										 ( m_FightMode == FightMode.Closest 
-        										|| m_FightMode == FightMode.Strongest 
-        										|| m_FightMode == FightMode.Weakest 
+        										 ( m_FightMode == FightMode.Closest
+        										|| m_FightMode == FightMode.Strongest
+        										|| m_FightMode == FightMode.Weakest
         										|| m_FightMode == FightMode.Good
         										 );
 

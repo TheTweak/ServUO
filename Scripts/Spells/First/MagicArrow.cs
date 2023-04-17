@@ -52,15 +52,12 @@ namespace Server.Spells.First
                     });
                 }
 
-                double damage = GetNewAosDamage(10, 1, 4, d);
+                // double damage = GetNewAosDamage(0, 1, 4, d);
+                double damage = 1;
+                Caster.MovingParticles(d, 0x36E4, 5, 0, false, false, 3006, 0, 0);
+                Caster.PlaySound(0x1E5);
 
-                if (damage > 0)
-                {
-                    Caster.MovingParticles(d, 0x36E4, 5, 0, false, false, 3006, 0, 0);
-                    Caster.PlaySound(0x1E5);
-
-                    SpellHelper.Damage(this, target, damage, 0, 100, 0, 0, 0);
-                }
+                SpellHelper.Damage(this, target, damage, 0, 100, 0, 0, 0);
             }
 
             FinishSequence();

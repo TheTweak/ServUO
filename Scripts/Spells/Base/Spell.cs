@@ -52,7 +52,7 @@ namespace Server.Spells
         public virtual SkillName DamageSkill => SkillName.EvalInt;
 
         public virtual bool RevealOnCast => true;
-        public virtual bool ClearHandsOnCast => true;
+        public virtual bool ClearHandsOnCast => false;
         public virtual bool ShowHandMovement => true;
 
         public virtual bool CheckManaBeforeCast => true;
@@ -63,8 +63,8 @@ namespace Server.Spells
         // Right now, magic arrow and nether bolt are the only ones that have this functionality
 
         public virtual bool DelayedDamageStacking => true;
-        //In reality, it's ANY delayed Damage spell that can't stack, but, only 
-        //Expo & Magic Arrow have enough delay and a short enough cast time to bring up 
+        //In reality, it's ANY delayed Damage spell that can't stack, but, only
+        //Expo & Magic Arrow have enough delay and a short enough cast time to bring up
         //the possibility of stacking 'em.  Note that a MA & an Explosion will stack, but
         //of course, two MA's won't.
 
@@ -662,68 +662,34 @@ namespace Server.Spells
         }
 
         public virtual bool BlockedByAnimalForm => true;
-        public virtual bool BlocksMovement => true;
+        public virtual bool BlocksMovement => false;
 
         public virtual bool CheckNextSpellTime => !(m_Scroll is BaseWand);
 
         public virtual bool Cast()
         {
-            if (m_Caster.Spell is Spell && ((Spell)m_Caster.Spell).State == SpellState.Sequencing)
-            {
-                ((Spell)m_Caster.Spell).Disturb(DisturbType.NewCast);
-            }
-
             if (!m_Caster.CheckAlive())
             {
                 return false;
-            }
-            else if (m_Caster is PlayerMobile && ((PlayerMobile)m_Caster).Peaced)
-            {
-                m_Caster.SendLocalizedMessage(1072060); // You cannot cast a spell while calmed.
-            }
-            else if (m_Scroll is BaseWand && m_Caster.Spell != null && m_Caster.Spell.IsCasting)
-            {
-                m_Caster.SendLocalizedMessage(502643); // You can not cast a spell while frozen.
-            }
-            else if (SkillHandlers.SpiritSpeak.IsInSpiritSpeak(m_Caster) || (m_Caster.Spell != null && m_Caster.Spell.IsCasting))
-            {
-                m_Caster.SendLocalizedMessage(502642); // You are already casting a spell.
             }
             else if (BlockedByHorrificBeast && TransformationSpellHelper.UnderTransformation(m_Caster, typeof(HorrificBeastSpell)) ||
                      (BlockedByAnimalForm && AnimalForm.UnderTransformation(m_Caster)))
             {
                 m_Caster.SendLocalizedMessage(1061091); // You cannot cast that spell in this form.
             }
-            else if (!(m_Scroll is BaseWand) && (m_Caster.Paralyzed || m_Caster.Frozen))
+            else if (m_Caster.Mana >= ScaleMana(GetMana()))
             {
-                m_Caster.SendLocalizedMessage(502643); // You can not cast a spell while frozen.
-            }
-            else if (CheckNextSpellTime && Core.TickCount - m_Caster.NextSpellTime < 0)
-            {
-                m_Caster.SendLocalizedMessage(502644); // You have not yet recovered from casting a spell.
-            }
-            else if (!CheckManaBeforeCast || m_Caster.Mana >= ScaleMana(GetMana()))
-            {
-                #region Stygian Abyss
-                if (m_Caster.Race == Race.Gargoyle && m_Caster.Flying)
-                {
-                    if (BaseMount.OnFlightPath(m_Caster))
-                    {
-                        if (m_Caster.IsPlayer())
-                        {
-                            m_Caster.SendLocalizedMessage(1113750); // You may not cast spells while flying over such precarious terrain.
-                            return false;
-                        }
-                        else
-                        {
-                            m_Caster.SendMessage("Your staff level allows you to cast while flying over precarious terrain.");
-                        }
-                    }
-                }
-                #endregion
+                int mana = ScaleMana(GetMana());
+                m_Caster.Mana -= mana;
 
-                if (m_Caster.Spell == null && m_Caster.CheckSpellCast(this) && CheckCast() &&
-                    m_Caster.Region.OnBeginSpellCast(m_Caster, this))
+                if (m_Caster.Spell is Spell && m_Caster.Spell.IsCasting)
+                {
+                    DoFizzle();
+                    ((Spell)m_Caster.Spell).Disturb(DisturbType.NewCast);
+                    m_Caster.Spell = null;
+                }
+
+                if (m_Caster.CheckSpellCast(this) && CheckCast() && m_Caster.Region.OnBeginSpellCast(m_Caster, this))
                 {
                     m_State = SpellState.Casting;
                     m_Caster.Spell = this;
@@ -814,45 +780,6 @@ namespace Server.Spells
                 m_Caster.Target.BeginTimeout(m_Caster, TimeSpan.FromSeconds(30.0));
             }
         }
-
-        #region Enhanced Client
-        public bool OnCastInstantTarget()
-        {
-            if (InstantTarget == null)
-                return false;
-
-            Type spellType = GetType();
-
-            Type[] types = spellType.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-
-            if (types != null)
-            {
-                Type targetType = types.FirstOrDefault(t => t.IsSubclassOf(typeof(Target)));
-
-                if (targetType != null)
-                {
-                    Target t = null;
-
-                    try
-                    {
-                        t = Activator.CreateInstance(targetType, this) as Target;
-                    }
-                    catch
-                    {
-                        LogBadConstructorForInstantTarget();
-                    }
-
-                    if (t != null)
-                    {
-                        t.Invoke(Caster, InstantTarget);
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-        #endregion
 
         public virtual void OnBeginCast()
         {
@@ -969,10 +896,10 @@ namespace Server.Spells
                 return CastDelayBase; // TODO: Should FC apply to wands?
             }
 
-            // Faster casting cap of 2 (if not using the protection spell) 
-            // Faster casting cap of 0 (if using the protection spell) 
-            // Paladin spells are subject to a faster casting cap of 4 
-            // Paladins with magery of 70.0 or above are subject to a faster casting cap of 2 
+            // Faster casting cap of 2 (if not using the protection spell)
+            // Faster casting cap of 0 (if using the protection spell)
+            // Paladin spells are subject to a faster casting cap of 4
+            // Paladins with magery of 70.0 or above are subject to a faster casting cap of 2
             int fcMax = 4;
 
             if (CastSkill == SkillName.Magery || CastSkill == SkillName.Necromancy || CastSkill == SkillName.Mysticism ||
@@ -1054,24 +981,8 @@ namespace Server.Spells
             {
                 m_Caster.LocalOverheadMessage(MessageType.Regular, 0x22, 502630); // More reagents are needed for this spell.
             }
-            else if (m_Caster.Mana < mana)
-            {
-                m_Caster.LocalOverheadMessage(MessageType.Regular, 0x22, 502625, mana.ToString()); // Insufficient mana for this spell.
-            }
-            else if (m_Caster.Frozen || m_Caster.Paralyzed)
-            {
-                m_Caster.SendLocalizedMessage(502646); // You cannot cast a spell while frozen.
-                DoFizzle();
-            }
-            else if (m_Caster is PlayerMobile && ((PlayerMobile)m_Caster).PeacedUntil > DateTime.UtcNow)
-            {
-                m_Caster.SendLocalizedMessage(1072060); // You cannot cast a spell while calmed.
-                DoFizzle();
-            }
             else if (CheckFizzle())
             {
-                m_Caster.Mana -= mana;
-
                 if (m_Scroll is SpellStone)
                 {
                     ((SpellStone)m_Scroll).Use(m_Caster);
